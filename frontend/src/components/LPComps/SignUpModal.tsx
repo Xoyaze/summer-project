@@ -10,9 +10,12 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "../ui/checkbox";
 import { Button } from "../ui/button";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useContext, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
+import { backend_api } from "../handles/apiHandler.ts";
+import { AuthContext } from "../handles/AuthContext";
+import { AxiosError } from "axios";
 
 type Props = {
   setShowingLogInForm: React.Dispatch<React.SetStateAction<boolean>>;
@@ -27,9 +30,17 @@ type FormDataType = {
 
 const SignUpModal:React.FC<Props> = ({setShowingLogInForm, handleClick}) => {
 
-  const handleClickInsideForm = (e) => {
+  const handleClickInsideForm = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
   }
+
+  //yeta chai authentication ko lagi hooks
+  const authContext = useContext(AuthContext);
+  if(!authContext){
+    throw new Error('AuthContext must be used within an AuthProvider');
+  }
+  const {setIsAuthenticated} = authContext;
+  const navigate = useNavigate();
 
 
   //yeta chai form thingies
@@ -49,17 +60,91 @@ const SignUpModal:React.FC<Props> = ({setShowingLogInForm, handleClick}) => {
 
   //aba handling submit with accepting terms and condition thingies haru
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
-  const handleSubmit = () => {
-    console.log(formData);
-    console.log(rePassword);
+  const [autoLogin, setAutoLogin] = useState<boolean>(true);
+  const handleSubmit = async () => {
+    if(formData.username.trim() == '' || formData.password.trim() == '' || rePassword.trim() == ''){
+      toast.warn("Please fill every input fields.", {className: "custom-toast"});
+      return;
+    }
 
-    
+    if(formData.password.includes(' ') || !/[a-zA-Z0-9]/.test(formData.password)){
+      toast.warn("Please make sure the password has no empty spaces and is alphanumeric.", {className: "custom-toast"});
+      return;
+    }   
 
-
+    if(formData.password !== rePassword){
+      toast.warn("The passwords do not match.", {className: "custom-toast"});
+      return;
+    }
 
     if(!termsAccepted){
-      toast.warn("You Must Check The Terms And Conditions", {className: "custom-toast"})
+      toast.warn("You Must Check The Terms And Conditions", {className: "custom-toast"});
+      return;
     }
+
+
+    try{
+      const form = new FormData();
+      form.append('username', formData.username);
+      form.append('password', formData.password);
+      const response = await backend_api.post('users/', formData);
+      if(!autoLogin){
+        toast.success("Account created successfully.", {className: "custom-toast"});
+        return ;
+      }
+      if(response.status == 201){
+          toast.success("Created the account successfully.", {className: "custom-toast"});
+          try{
+              const loginResponse = await backend_api.post('token/', formData);
+              const {access, refresh} = loginResponse.data;
+              localStorage.setItem('accessToken', access);
+              localStorage.setItem('refreshToken', refresh);
+
+              if(loginResponse.status == 200){
+                  toast.success("You have logged in successfully.", {className: 'custom-toast'});
+                  setFormData({username: '', password: '', role: ''});
+                  setIsAuthenticated(true);
+                  navigate('/');
+              }
+          }catch(error){
+              const axiosError = error as AxiosError;
+              if(axiosError.response){
+                toast.error('Failed to log in.', {className: "custom-toast-fail", progressClassName: "custom-progress-bar-fail"});
+              }else if(axiosError.request){
+                toast.error('Failed to connect to the server, Please try again later.', {className: "custom-toast-fail", progressClassName: "custom-progress-bar-fail"});
+              }else{
+                toast.error('Some error has occurred.', {className: "custom-toast-fail", progressClassName: "custom-progress-bar-fail"});
+              }
+          }finally{
+            setFormData({
+              username: "",
+              password: "",
+              role: '',
+            })
+            setRePassword('');
+          }
+
+      }
+        }catch(error){
+            const axiosError = error as AxiosError;
+            if(axiosError.response){
+                toast.error("Something went wrong when trying to register, please try again later.", {className: "custom-toast-fail"});
+            }else if(axiosError.request){
+                toast.error("Couldn't connect with the server.", {className: "custom-toast-fail"});
+            }else{
+                toast.error("Something went wrong, please try again later.", {className: "custom-toast-fail"});
+            }
+        }finally{
+          setFormData({
+            username: "",
+            password: "",
+            role: '',
+          });
+          setRePassword('');
+        }
+
+
+
   }
 
   return (
@@ -85,7 +170,7 @@ const SignUpModal:React.FC<Props> = ({setShowingLogInForm, handleClick}) => {
             </Select>
             <Button onClick={handleSubmit} variant={'default'} className="bg-accent border border-stone-600 hover:cursor-pointer transition duration-100 text-white hover:bg-stone-700" >Submit</Button>
             <div className="flex items-center space-x-2 mt-2 px-2">
-              <Checkbox id="autoLogin" defaultChecked />
+              <Checkbox onClick={() => setAutoLogin(!autoLogin)} id="autoLogin" defaultChecked />
               <label
                 htmlFor="autoLogin"
                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -109,7 +194,6 @@ const SignUpModal:React.FC<Props> = ({setShowingLogInForm, handleClick}) => {
           </CardFooter>
       </Card>
       <ToastContainer className={"relative z-[99999999]"} limit={3} />
-      
     </>
   )
 }

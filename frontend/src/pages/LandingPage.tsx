@@ -16,19 +16,23 @@ const LandingPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [animationLoading, setAnimationLoading] = useState<boolean>(true);
 
-  useEffect(() => {
-    const handleWindowLoad = () => {
+ useEffect(() => {
+    const handleLoad = () => {
       setIsLoading(false);
 
       setTimeout(() => {
         setAnimationLoading(false);
-      }, 5000)
+      }, 5000);
     };
-    
-    window.onload = handleWindowLoad;
-   
+
+    if (document.readyState === 'complete') {
+      handleLoad();
+    } else {
+      window.addEventListener('load', handleLoad);
+    }
+
     return () => {
-      window.onload = null;
+      window.removeEventListener('load', handleLoad);
     };
   }, []);
 

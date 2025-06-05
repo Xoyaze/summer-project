@@ -1,6 +1,7 @@
 import { AuthContext } from "@/components/handles/AuthContext"
 import { useContext, useLayoutEffect } from "react"
 import LandingPage from "./LandingPage";
+import UserPage from "./UserPage";
 
 const InitialRoute = () => {
 
@@ -24,7 +25,7 @@ const InitialRoute = () => {
 
   return (
     <>
-        {isAuthenticated ? (<h1>User is logged in ....</h1>) : (<LandingPage />)}
+        {isAuthenticated ? (<UserPage />) : (<LandingPage />)}
     </>
   )
 }
